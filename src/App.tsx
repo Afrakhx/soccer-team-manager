@@ -11,6 +11,7 @@ import { SettingsPage } from '@/pages/SettingsPage';
 import { CoachLoginPage } from '@/pages/CoachLoginPage';
 import { ParentAccessPage } from '@/pages/ParentAccessPage';
 import { ParentViewPage } from '@/pages/ParentViewPage';
+import { CoachesCornerPage } from '@/pages/CoachesCornerPage';
 
 function ProtectedRoutes() {
   const { isAuthenticated } = useApp();
@@ -35,6 +36,7 @@ function AppRoutes() {
         <Route path="/attendance" element={<AttendanceListPage />} />
         <Route path="/attendance/:eventId" element={<AttendancePage />} />
         <Route path="/settings" element={<SettingsPage />} />
+        <Route path="/coaches-corner" element={<CoachesCornerPage />} />
       </Route>
 
       {/* Fallback */}

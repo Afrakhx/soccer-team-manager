@@ -1,5 +1,6 @@
 import { useForm } from 'react-hook-form';
-import { Save, Download, Upload } from 'lucide-react';
+import { useState } from 'react';
+import { Save, Download, Upload, KeyRound, CheckCircle } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
 import { Card } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
@@ -12,9 +13,22 @@ export function SettingsPage() {
     defaultValues: settings,
   });
 
+  const [apiKey, setApiKey] = useState(localStorage.getItem('u10_claude_key') ?? '');
+  const [apiKeySaved, setApiKeySaved] = useState(false);
+
   function onSubmit(data: TeamSettings) {
     updateSettings(data);
     alert('Settings saved!');
+  }
+
+  function saveApiKey() {
+    if (apiKey.trim()) {
+      localStorage.setItem('u10_claude_key', apiKey.trim());
+    } else {
+      localStorage.removeItem('u10_claude_key');
+    }
+    setApiKeySaved(true);
+    setTimeout(() => setApiKeySaved(false), 2500);
   }
 
   function handleExport() {
@@ -108,6 +122,39 @@ export function SettingsPage() {
               <input type="file" accept=".json" className="hidden" onChange={handleImport} />
             </label>
           </div>
+        </Card>
+
+        {/* AI / Claude API key */}
+        <Card>
+          <div className="flex items-center gap-2 mb-1">
+            <KeyRound size={16} className="text-gray-500" />
+            <h2 className="text-base font-semibold text-gray-900">Coaches Corner — AI Settings</h2>
+          </div>
+          <p className="text-sm text-gray-500 mb-4">
+            Add your Claude API key to enable real AI-powered assessments. Without a key, demo mode is used.
+            Get a free key at <a href="https://console.anthropic.com" target="_blank" rel="noopener noreferrer" className="text-pitch-600 underline">console.anthropic.com</a>.
+          </p>
+          <div className="flex gap-2">
+            <input
+              type="password"
+              value={apiKey}
+              onChange={e => setApiKey(e.target.value)}
+              placeholder="sk-ant-..."
+              className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm font-mono focus:border-pitch-500 focus:outline-none focus:ring-1 focus:ring-pitch-500"
+            />
+            <Button onClick={saveApiKey} variant={apiKeySaved ? 'secondary' : 'primary'}>
+              {apiKeySaved ? <><CheckCircle size={15} /> Saved!</> : <><Save size={15} /> Save Key</>}
+            </Button>
+          </div>
+          {apiKey && (
+            <button
+              type="button"
+              onClick={() => { setApiKey(''); localStorage.removeItem('u10_claude_key'); }}
+              className="mt-2 text-xs text-red-500 hover:underline"
+            >
+              Remove API key
+            </button>
+          )}
         </Card>
 
         {/* Parent view info */}

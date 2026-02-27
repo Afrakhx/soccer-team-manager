@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, Users, Calendar, ClipboardCheck, Settings, LogOut, Trophy } from 'lucide-react';
+import { LayoutDashboard, Users, Calendar, ClipboardCheck, Settings, LogOut, Trophy, BrainCircuit } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useApp } from '@/context/AppContext';
 
@@ -8,6 +8,7 @@ const NAV_ITEMS = [
   { to: '/roster', icon: Users, label: 'Roster' },
   { to: '/schedule', icon: Calendar, label: 'Schedule' },
   { to: '/attendance', icon: ClipboardCheck, label: 'Attendance' },
+  { to: '/coaches-corner', icon: BrainCircuit, label: 'Coaches Corner' },
   { to: '/settings', icon: Settings, label: 'Settings' },
 ];
 

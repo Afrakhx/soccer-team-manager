@@ -1,12 +1,12 @@
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, Users, Calendar, ClipboardCheck, Settings } from 'lucide-react';
+import { LayoutDashboard, Users, Calendar, BrainCircuit, Settings } from 'lucide-react';
 import { clsx } from 'clsx';
 
 const NAV_ITEMS = [
   { to: '/', icon: LayoutDashboard, label: 'Home', exact: true },
   { to: '/roster', icon: Users, label: 'Roster' },
   { to: '/schedule', icon: Calendar, label: 'Schedule' },
-  { to: '/attendance', icon: ClipboardCheck, label: 'Attendance' },
+  { to: '/coaches-corner', icon: BrainCircuit, label: 'AI Coach' },
   { to: '/settings', icon: Settings, label: 'Settings' },
 ];
 
