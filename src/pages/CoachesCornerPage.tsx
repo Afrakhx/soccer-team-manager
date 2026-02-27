@@ -1,13 +1,14 @@
 import { useState } from 'react';
 import {
   BrainCircuit, Sparkles, AlertTriangle, ChevronRight,
-  ChevronLeft, RotateCcw, CheckCircle2, Circle,
+  ChevronLeft, RotateCcw, CheckCircle2, Circle, History, Trash2,
 } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { runAIAssessment } from '@/utils/aiAssessment';
 import type { AIAssessmentResult, CornerRating, GuidedAssessmentData } from '@/utils/aiAssessment';
+import type { AIAssessment } from '@/types';
 
 // ─── What the coach looks for, in plain language ────────────────────────────
 
@@ -133,13 +134,14 @@ function CornerCard({ label, color, rating }: { label: string; color: keyof type
 // ─── Main page ───────────────────────────────────────────────────────────────
 
 export function CoachesCornerPage() {
-  const { players, settings } = useApp();
+  const { players, settings, addAIAssessment, getAIAssessmentsForPlayer, deleteAIAssessment } = useApp();
   const activePlayers = players.filter(p => p.isActive);
 
   const [selectedId, setSelectedId] = useState(activePlayers[0]?.id ?? '');
-  const [step, setStep] = useState<'player' | 0 | 1 | 2 | 3 | 'result'>('player');
+  const [step, setStep] = useState<'player' | 0 | 1 | 2 | 3 | 'result' | 'history'>('player');
   const [data, setData] = useState<GuidedAssessmentData>(emptyData());
   const [result, setResult] = useState<AIAssessmentResult | null>(null);
+  const [historyItem, setHistoryItem] = useState<AIAssessment | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -172,6 +174,21 @@ export function CoachesCornerPage() {
         getAgeGroup(player.dateOfBirth),
         GUIDE_ITEMS,
       );
+      // Persist to localStorage immediately
+      addAIAssessment({
+        playerId: player.id,
+        assessedAt: new Date().toISOString(),
+        assessedBy: settings.coachName,
+        technical:     res.technical,
+        tactical:      res.tactical,
+        physical:      res.physical,
+        psychological: res.psychological,
+        strengths:     res.strengths,
+        areasToImprove:res.areasToImprove,
+        drills:        res.drills,
+        summary:       res.summary,
+        isDemo:        res.isDemo,
+      });
       setResult(res);
       setStep('result');
     } catch (e) {
@@ -185,7 +202,13 @@ export function CoachesCornerPage() {
     setStep('player');
     setData(emptyData());
     setResult(null);
+    setHistoryItem(null);
     setError('');
+  }
+
+  function openHistory(a: AIAssessment) {
+    setHistoryItem(a);
+    setStep('history');
   }
 
   // ── Progress bar ──
@@ -216,7 +239,7 @@ export function CoachesCornerPage() {
       )}
 
       {/* Progress indicator */}
-      {step !== 'player' && step !== 'result' && (
+      {step !== 'player' && step !== 'result' && step !== 'history' && (
         <div className="mb-6">
           <div className="flex items-center gap-2 mb-2">
             {STEPS.map((s, i) => {
@@ -242,38 +265,109 @@ export function CoachesCornerPage() {
 
       {/* ── STEP: Player select ── */}
       {step === 'player' && (
-        <Card>
-          <h2 className="text-base font-semibold text-gray-800 mb-1">Who are you assessing?</h2>
-          <p className="text-sm text-gray-500 mb-4">
-            Select the player you want to assess. You'll be guided through 4 short sections — just tick what you observed during the session.
-          </p>
+        <div className="space-y-4">
+          <Card>
+            <h2 className="text-base font-semibold text-gray-800 mb-1">Who are you assessing?</h2>
+            <p className="text-sm text-gray-500 mb-4">
+              Select the player you want to assess. You'll be guided through 4 short sections — just tick what you observed during the session.
+            </p>
 
-          <div className="space-y-2 mb-6">
-            {activePlayers.map(p => (
-              <button
-                key={p.id}
-                type="button"
-                onClick={() => setSelectedId(p.id)}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border-2 text-left transition-colors
-                  ${selectedId === p.id ? 'border-pitch-500 bg-pitch-50' : 'border-gray-200 hover:border-gray-300'}`}
-              >
-                <div className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm flex-shrink-0
-                  ${selectedId === p.id ? 'bg-pitch-500 text-white' : 'bg-gray-100 text-gray-600'}`}>
-                  {p.jerseyNumber}
-                </div>
-                <div>
-                  <p className="text-sm font-semibold text-gray-900">{p.firstName} {p.lastName}</p>
-                  <p className="text-xs text-gray-500">{p.position} · {getAgeGroup(p.dateOfBirth)}</p>
-                </div>
-                {selectedId === p.id && <CheckCircle2 size={18} className="ml-auto text-pitch-500" />}
-              </button>
-            ))}
-          </div>
+            <div className="space-y-2 mb-6">
+              {activePlayers.map(p => {
+                const history = getAIAssessmentsForPlayer(p.id);
+                const latest = history[0];
+                return (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => setSelectedId(p.id)}
+                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border-2 text-left transition-colors
+                      ${selectedId === p.id ? 'border-pitch-500 bg-pitch-50' : 'border-gray-200 hover:border-gray-300'}`}
+                  >
+                    <div className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm flex-shrink-0
+                      ${selectedId === p.id ? 'bg-pitch-500 text-white' : 'bg-gray-100 text-gray-600'}`}>
+                      {p.jerseyNumber}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-gray-900">{p.firstName} {p.lastName}</p>
+                      <p className="text-xs text-gray-500">
+                        {p.position} · {getAgeGroup(p.dateOfBirth)}
+                        {latest && (
+                          <span className="ml-2 text-pitch-600">
+                            · Last assessed {new Date(latest.assessedAt).toLocaleDateString()}
+                          </span>
+                        )}
+                      </p>
+                    </div>
+                    {selectedId === p.id
+                      ? <CheckCircle2 size={18} className="text-pitch-500 flex-shrink-0" />
+                      : history.length > 0
+                        ? <span className="text-xs text-gray-400 flex-shrink-0">{history.length} report{history.length !== 1 ? 's' : ''}</span>
+                        : null
+                    }
+                  </button>
+                );
+              })}
+            </div>
 
-          <Button onClick={() => setStep(0)} disabled={!selectedId} className="w-full">
-            Start Assessment <ChevronRight size={16} />
-          </Button>
-        </Card>
+            <Button onClick={() => setStep(0)} disabled={!selectedId} className="w-full">
+              Start New Assessment <ChevronRight size={16} />
+            </Button>
+          </Card>
+
+          {/* Past assessments for selected player */}
+          {selectedId && (() => {
+            const history = getAIAssessmentsForPlayer(selectedId);
+            if (!history.length) return null;
+            return (
+              <Card>
+                <div className="flex items-center gap-2 mb-3">
+                  <History size={15} className="text-gray-400" />
+                  <p className="text-sm font-semibold text-gray-700">Past Assessments</p>
+                </div>
+                <div className="space-y-2">
+                  {history.map(a => (
+                    <div key={a.id} className="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-800">
+                          {new Date(a.assessedAt).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
+                        </p>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          {(['technical','tactical','physical','psychological'] as const).map(k => {
+                            const cc = ({ technical:'blue', tactical:'purple', physical:'orange', psychological:'green' } as const)[k];
+                            const score = a[k].score;
+                            const label = (['Technical','Tactical','Physical','Mental'] as const)[(['technical','tactical','physical','psychological'] as const).indexOf(k)];
+                            return (
+                              <span key={k} className={`text-xs font-bold px-1.5 py-0.5 rounded ${COLOR[cc].scoreBg}`}>
+                                {label[0]}{score}
+                              </span>
+                            );
+                          })}
+                          {a.isDemo && <span className="text-xs text-gray-400">demo</span>}
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => openHistory(a)}
+                        className="text-xs text-pitch-600 font-medium hover:text-pitch-800 flex-shrink-0"
+                      >
+                        View
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => deleteAIAssessment(a.id)}
+                        className="text-gray-300 hover:text-red-400 flex-shrink-0"
+                        title="Delete"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            );
+          })()}
+        </div>
       )}
 
       {/* ── STEPS 0-3: Observation checklists ── */}
@@ -434,11 +528,92 @@ export function CoachesCornerPage() {
             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Development Summary</p>
             <p className="text-sm text-gray-700 leading-relaxed">{result.summary}</p>
             <p className="text-xs text-gray-400 mt-3">
-              {new Date().toLocaleDateString()} · Coach: {settings.coachName}
+              {new Date().toLocaleDateString()} · Coach: {settings.coachName} · Saved automatically
             </p>
           </Card>
         </div>
       )}
+
+      {/* ── HISTORY DETAIL ── */}
+      {step === 'history' && historyItem && (() => {
+        const hp = activePlayers.find(p => p.id === historyItem.playerId);
+        return (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-500">
+                  {new Date(historyItem.assessedAt).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
+                </p>
+                <p className="text-lg font-bold text-gray-900">{hp?.firstName} {hp?.lastName}</p>
+              </div>
+              <Button variant="secondary" size="sm" onClick={reset}>
+                <ChevronLeft size={14} /> Back
+              </Button>
+            </div>
+
+            {historyItem.isDemo && (
+              <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
+                <AlertTriangle size={14} className="text-amber-500 flex-shrink-0" />
+                <p className="text-xs text-amber-700 font-medium">Demo report</p>
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {CORNER_CONFIG.map(cc => (
+                <CornerCard key={cc.key} label={cc.label} color={cc.color} rating={historyItem[cc.key]} />
+              ))}
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <Card>
+                <p className="text-xs font-semibold text-green-700 uppercase tracking-wide mb-2">Strengths Observed</p>
+                <ul className="space-y-1.5">
+                  {historyItem.strengths.map((s, i) => (
+                    <li key={i} className="flex items-start gap-2 text-sm text-gray-700">
+                      <span className="text-green-500 mt-0.5 flex-shrink-0">✓</span>{s}
+                    </li>
+                  ))}
+                </ul>
+              </Card>
+              <Card>
+                <p className="text-xs font-semibold text-orange-700 uppercase tracking-wide mb-2">Areas to Develop</p>
+                <ul className="space-y-1.5">
+                  {historyItem.areasToImprove.map((a, i) => (
+                    <li key={i} className="flex items-start gap-2 text-sm text-gray-700">
+                      <span className="text-orange-500 mt-0.5 flex-shrink-0">→</span>{a}
+                    </li>
+                  ))}
+                </ul>
+              </Card>
+            </div>
+
+            <Card>
+              <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide mb-3">Recommended Drills</p>
+              <div className="space-y-3">
+                {historyItem.drills.map((drill, i) => (
+                  <div key={i} className="flex gap-3">
+                    <div className="w-6 h-6 rounded-full bg-blue-100 text-blue-700 text-xs font-bold flex items-center justify-center flex-shrink-0 mt-0.5">
+                      {i + 1}
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-gray-800">{drill.name}</p>
+                      <p className="text-xs text-gray-500 mt-0.5">{drill.description}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </Card>
+
+            <Card>
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Development Summary</p>
+              <p className="text-sm text-gray-700 leading-relaxed">{historyItem.summary}</p>
+              <p className="text-xs text-gray-400 mt-3">
+                Assessed by {historyItem.assessedBy}
+              </p>
+            </Card>
+          </div>
+        );
+      })()}
     </div>
   );
 }

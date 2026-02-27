@@ -80,3 +80,25 @@ export interface PlayerWithStats extends Player {
   attendanceRate: number;
   gamesPlayed: number;
 }
+
+export interface AICornerRating {
+  score: number;
+  label: string;
+  observation: string;
+}
+
+export interface AIAssessment {
+  id: string;
+  playerId: string;
+  assessedAt: string;         // ISO date string
+  assessedBy: string;         // coach name
+  technical: AICornerRating;
+  tactical: AICornerRating;
+  physical: AICornerRating;
+  psychological: AICornerRating;
+  strengths: string[];
+  areasToImprove: string[];
+  drills: { name: string; description: string }[];
+  summary: string;
+  isDemo: boolean;
+}

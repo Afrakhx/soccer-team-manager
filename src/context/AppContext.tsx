@@ -5,10 +5,11 @@ import { useSkillRatings } from '@/hooks/useSkillRatings';
 import { useAttendance } from '@/hooks/useAttendance';
 import { useTeamSettings } from '@/hooks/useTeamSettings';
 import { useCoachAuth } from '@/hooks/useCoachAuth';
+import { useAIAssessments } from '@/hooks/useAIAssessments';
 import {
   SEED_PLAYERS, SEED_EVENTS, SEED_RATINGS, SEED_ATTENDANCE,
 } from '@/constants/defaults';
-import type { Player, CalendarEvent, SkillRating, AttendanceRecord, AttendanceStatus, TeamSettings } from '@/types';
+import type { Player, CalendarEvent, SkillRating, AttendanceRecord, AttendanceStatus, TeamSettings, AIAssessment } from '@/types';
 
 interface AppContextValue {
   // Players
@@ -41,6 +42,13 @@ interface AppContextValue {
   getAttendanceForPlayer: (playerId: string) => AttendanceRecord[];
   getStatusForPlayer: (eventId: string, playerId: string) => AttendanceStatus | undefined;
 
+  // AI Assessments
+  aiAssessments: AIAssessment[];
+  addAIAssessment: (data: Omit<AIAssessment, 'id'>) => AIAssessment;
+  deleteAIAssessment: (id: string) => void;
+  getAIAssessmentsForPlayer: (playerId: string) => AIAssessment[];
+  getLatestAIAssessmentForPlayer: (playerId: string) => AIAssessment | undefined;
+
   // Settings
   settings: TeamSettings;
   updateSettings: (data: Partial<TeamSettings>) => void;
@@ -58,6 +66,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const eventsApi = useEvents(SEED_EVENTS);
   const ratingsApi = useSkillRatings(SEED_RATINGS);
   const attendanceApi = useAttendance(SEED_ATTENDANCE);
+  const aiApi = useAIAssessments();
   const { settings, updateSettings } = useTeamSettings();
   const { isAuthenticated, login, logout } = useCoachAuth(settings.coachPasscode);
 
@@ -66,6 +75,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     ...eventsApi,
     ...ratingsApi,
     ...attendanceApi,
+    aiAssessments: aiApi.assessments,
+    addAIAssessment: aiApi.addAssessment,
+    deleteAIAssessment: aiApi.deleteAssessment,
+    getAIAssessmentsForPlayer: aiApi.getAssessmentsForPlayer,
+    getLatestAIAssessmentForPlayer: aiApi.getLatestForPlayer,
     settings,
     updateSettings,
     isAuthenticated,
