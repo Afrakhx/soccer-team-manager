@@ -1,5 +1,5 @@
 import { useParams } from 'react-router-dom';
-import { Trophy, Star, Calendar, ClipboardCheck } from 'lucide-react';
+import { Trophy, Star, Calendar, ClipboardCheck, BrainCircuit } from 'lucide-react';
 import { Avatar } from '@/components/ui/Avatar';
 import { Card } from '@/components/ui/Card';
 import { SkillRadarChart } from '@/components/profile/SkillRadarChart';
@@ -11,12 +11,115 @@ import { getOverallScore, getPreviousRating } from '@/utils/skillAggregation';
 import { getAttendanceRate } from '@/utils/attendanceUtils';
 import { formatDate } from '@/utils/dateUtils';
 import { STAR_LABELS } from '@/constants/skills';
+import type { AIAssessment } from '@/types';
+
+// ── Reusable corner score bar ─────────────────────────────────────────────────
+const CORNER_META = [
+  { key: 'technical'     as const, label: 'Technical',   shortLabel: 'Ball Skills',      colorBar: '#3b82f6', colorBg: 'bg-blue-50',   colorText: 'text-blue-700',   colorBadge: 'bg-blue-100 text-blue-800'   },
+  { key: 'tactical'      as const, label: 'Tactical',    shortLabel: 'Game Understanding',colorBar: '#8b5cf6', colorBg: 'bg-purple-50', colorText: 'text-purple-700', colorBadge: 'bg-purple-100 text-purple-800'},
+  { key: 'physical'      as const, label: 'Physical',    shortLabel: 'Athletic Ability',  colorBar: '#f97316', colorBg: 'bg-orange-50', colorText: 'text-orange-700', colorBadge: 'bg-orange-100 text-orange-800'},
+  { key: 'psychological' as const, label: 'Attitude',    shortLabel: 'Mindset & Character',colorBar:'#22c55e', colorBg: 'bg-green-50',  colorText: 'text-green-700',  colorBadge: 'bg-green-100 text-green-800' },
+] as const;
+
+function AIReportSection({ report, playerFirstName }: { report: AIAssessment; playerFirstName: string }) {
+  return (
+    <div className="space-y-4">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <BrainCircuit size={16} className="text-pitch-600" />
+          <h2 className="font-semibold text-gray-900">Development Report</h2>
+        </div>
+        <p className="text-xs text-gray-400">
+          {new Date(report.assessedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+        </p>
+      </div>
+
+      {/* 4 Corner Scores */}
+      <div className="grid grid-cols-2 gap-2">
+        {CORNER_META.map(cm => {
+          const rating = report[cm.key];
+          return (
+            <div key={cm.key} className={`rounded-xl p-3 ${cm.colorBg}`}>
+              <p className={`text-xs font-semibold uppercase tracking-wide ${cm.colorText} mb-0.5`}>{cm.label}</p>
+              <p className="text-xs text-gray-500 mb-2">{cm.shortLabel}</p>
+              <div className="flex items-center gap-2">
+                <div className="flex-1 bg-white bg-opacity-60 rounded-full h-1.5">
+                  <div
+                    className="h-1.5 rounded-full transition-all"
+                    style={{ width: `${(rating.score / 5) * 100}%`, backgroundColor: cm.colorBar }}
+                  />
+                </div>
+                <span className={`text-xs font-bold px-1.5 py-0.5 rounded-full ${cm.colorBadge}`}>{rating.score}/5</span>
+              </div>
+              <p className="text-xs font-medium text-gray-700 mt-1.5">{rating.label}</p>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Summary */}
+      <Card>
+        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Coach's Summary</p>
+        <p className="text-sm text-gray-700 leading-relaxed">{report.summary.replace(/⚠️.*$/, '').trim()}</p>
+      </Card>
+
+      {/* Strengths */}
+      <Card>
+        <p className="text-xs font-semibold text-green-700 uppercase tracking-wide mb-2">
+          What {playerFirstName} is doing well
+        </p>
+        <ul className="space-y-1.5">
+          {report.strengths.map((s, i) => (
+            <li key={i} className="flex items-start gap-2 text-sm text-gray-700">
+              <span className="text-green-500 flex-shrink-0 mt-0.5">✓</span>{s}
+            </li>
+          ))}
+        </ul>
+      </Card>
+
+      {/* Areas to develop */}
+      <Card>
+        <p className="text-xs font-semibold text-orange-700 uppercase tracking-wide mb-2">
+          What we're working on with {playerFirstName}
+        </p>
+        <ul className="space-y-1.5">
+          {report.areasToImprove.map((a, i) => (
+            <li key={i} className="flex items-start gap-2 text-sm text-gray-700">
+              <span className="text-orange-500 flex-shrink-0 mt-0.5">→</span>{a}
+            </li>
+          ))}
+        </ul>
+      </Card>
+
+      {/* Drills to try at home */}
+      <Card>
+        <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide mb-3">
+          Drills to try at home with {playerFirstName}
+        </p>
+        <div className="space-y-3">
+          {report.drills.map((drill, i) => (
+            <div key={i} className="flex gap-3">
+              <div className="w-6 h-6 rounded-full bg-blue-100 text-blue-700 text-xs font-bold flex items-center justify-center flex-shrink-0 mt-0.5">
+                {i + 1}
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-gray-800">{drill.name}</p>
+                <p className="text-xs text-gray-500 mt-0.5">{drill.description}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </Card>
+    </div>
+  );
+}
 
 export function ParentViewPage() {
   const { accessCode } = useParams<{ accessCode: string }>();
   const {
     getPlayerByAccessCode, getRatingsForPlayer, getLatestForPlayer,
-    getUpcoming, settings, events, records,
+    getUpcoming, settings, events, records, getAIAssessmentsForPlayer,
   } = useApp();
 
   const player = getPlayerByAccessCode(accessCode ?? '');
@@ -44,6 +147,9 @@ export function ParentViewPage() {
   const attendanceRate = getAttendanceRate(player.id, records, events);
   const upcomingEvents = getUpcoming().slice(0, 4);
   const overallScore = latest ? getOverallScore(latest) : null;
+
+  const aiReports = getAIAssessmentsForPlayer(player.id); // newest first
+  const latestAIReport = aiReports[0] ?? null;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -95,14 +201,25 @@ export function ParentViewPage() {
               <p className="text-xs text-gray-500">Attendance</p>
             </div>
             <div className="bg-purple-50 rounded-xl p-3">
-              <p className="text-2xl font-bold text-purple-700">{playerRatings.length}</p>
-              <p className="text-xs text-gray-500">Assessments</p>
+              <p className="text-2xl font-bold text-purple-700">{aiReports.length}</p>
+              <p className="text-xs text-gray-500">Reports</p>
             </div>
           </div>
         </Card>
 
-        {/* Skills */}
-        {latest ? (
+        {/* AI Development Report — shown first if available */}
+        {latestAIReport ? (
+          <AIReportSection report={latestAIReport} playerFirstName={player.firstName} />
+        ) : (
+          <Card className="text-center py-6">
+            <BrainCircuit size={32} className="mx-auto text-gray-200 mb-2" />
+            <p className="text-sm text-gray-500">No development report yet.</p>
+            <p className="text-xs text-gray-400 mt-1">Your coach will generate one after the next session.</p>
+          </Card>
+        )}
+
+        {/* Skills (if coach has done manual skill ratings too) */}
+        {latest && (
           <>
             <Card>
               <h2 className="font-semibold text-gray-900 mb-1">Skill Radar</h2>
@@ -121,18 +238,12 @@ export function ParentViewPage() {
               )}
             </Card>
           </>
-        ) : (
-          <Card className="text-center py-8">
-            <Star size={40} className="mx-auto text-gray-200 mb-3" />
-            <p className="text-gray-500 text-sm">No skill assessments yet.</p>
-            <p className="text-gray-400 text-xs mt-1">Your coach will add assessments after practices.</p>
-          </Card>
         )}
 
-        {/* Assessment history */}
+        {/* Assessment history (skill ratings) */}
         {playerRatings.length > 1 && (
           <Card>
-            <h2 className="font-semibold text-gray-900 mb-3">Progress History</h2>
+            <h2 className="font-semibold text-gray-900 mb-3">Skill Score History</h2>
             <div className="space-y-2">
               {[...playerRatings].reverse().slice(0, 5).map(rating => (
                 <div key={rating.id} className="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">

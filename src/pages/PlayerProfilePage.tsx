@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { ArrowLeft, Edit2, Trash2, ClipboardPlus, Key, ChevronDown, ChevronUp } from 'lucide-react';
+import { ArrowLeft, Edit2, Trash2, ClipboardPlus, Key, ChevronDown, ChevronUp, BrainCircuit, ArrowRight } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
 import { Avatar } from '@/components/ui/Avatar';
 import { Card } from '@/components/ui/Card';
@@ -18,7 +18,86 @@ import { SkillAssessmentForm } from '@/components/skills/SkillAssessmentForm';
 import { getAttendanceRate } from '@/utils/attendanceUtils';
 import { formatDate } from '@/utils/dateUtils';
 import { getOverallScore, getPreviousRating } from '@/utils/skillAggregation';
-import type { Player } from '@/types';
+import type { Player, AIAssessment } from '@/types';
+
+// ── Corner score colours (matches CoachesCornerPage) ─────────────────────────
+const CORNER_META = [
+  { key: 'technical'     as const, label: 'Technical',  colorBar: '#3b82f6', colorBg: 'bg-blue-50',   colorText: 'text-blue-700',   colorBadge: 'bg-blue-100 text-blue-800'   },
+  { key: 'tactical'      as const, label: 'Tactical',   colorBar: '#8b5cf6', colorBg: 'bg-purple-50', colorText: 'text-purple-700', colorBadge: 'bg-purple-100 text-purple-800'},
+  { key: 'physical'      as const, label: 'Physical',   colorBar: '#f97316', colorBg: 'bg-orange-50', colorText: 'text-orange-700', colorBadge: 'bg-orange-100 text-orange-800'},
+  { key: 'psychological' as const, label: 'Mental',     colorBar: '#22c55e', colorBg: 'bg-green-50',  colorText: 'text-green-700',  colorBadge: 'bg-green-100 text-green-800' },
+] as const;
+
+function AIReportCard({ report }: { report: AIAssessment }) {
+  return (
+    <div className="space-y-3">
+      <div className="grid grid-cols-2 gap-2">
+        {CORNER_META.map(cm => {
+          const rating = report[cm.key];
+          return (
+            <div key={cm.key} className={`rounded-xl p-3 ${cm.colorBg}`}>
+              <div className="flex items-center justify-between mb-1.5">
+                <p className={`text-xs font-semibold ${cm.colorText}`}>{cm.label}</p>
+                <span className={`text-xs font-bold px-1.5 py-0.5 rounded-full ${cm.colorBadge}`}>{rating.score}/5</span>
+              </div>
+              <div className="bg-white bg-opacity-60 rounded-full h-1.5 mb-1.5">
+                <div
+                  className="h-1.5 rounded-full"
+                  style={{ width: `${(rating.score / 5) * 100}%`, backgroundColor: cm.colorBar }}
+                />
+              </div>
+              <p className="text-xs text-gray-600 leading-relaxed">{rating.observation}</p>
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="grid grid-cols-2 gap-2">
+        <div className="bg-gray-50 rounded-xl p-3">
+          <p className="text-xs font-semibold text-green-700 mb-1.5">Strengths</p>
+          <ul className="space-y-1">
+            {report.strengths.map((s, i) => (
+              <li key={i} className="flex items-start gap-1.5 text-xs text-gray-700">
+                <span className="text-green-500 flex-shrink-0">✓</span>{s}
+              </li>
+            ))}
+          </ul>
+        </div>
+        <div className="bg-gray-50 rounded-xl p-3">
+          <p className="text-xs font-semibold text-orange-700 mb-1.5">To Develop</p>
+          <ul className="space-y-1">
+            {report.areasToImprove.map((a, i) => (
+              <li key={i} className="flex items-start gap-1.5 text-xs text-gray-700">
+                <span className="text-orange-500 flex-shrink-0">→</span>{a}
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
+
+      <div className="bg-gray-50 rounded-xl p-3">
+        <p className="text-xs font-semibold text-blue-700 mb-2">Recommended Drills</p>
+        <div className="space-y-2">
+          {report.drills.map((drill, i) => (
+            <div key={i} className="flex gap-2">
+              <div className="w-5 h-5 rounded-full bg-blue-100 text-blue-700 text-xs font-bold flex items-center justify-center flex-shrink-0 mt-0.5">{i + 1}</div>
+              <div>
+                <p className="text-xs font-semibold text-gray-800">{drill.name}</p>
+                <p className="text-xs text-gray-500">{drill.description}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <p className="text-xs text-gray-500 italic leading-relaxed">{report.summary.replace(/⚠️.*$/, '').trim()}</p>
+      <p className="text-xs text-gray-400">
+        {new Date(report.assessedAt).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
+        {report.isDemo && ' · demo'}
+      </p>
+    </div>
+  );
+}
 
 export function PlayerProfilePage() {
   const { playerId } = useParams<{ playerId: string }>();
@@ -27,6 +106,7 @@ export function PlayerProfilePage() {
     getPlayerById, updatePlayer, deletePlayer,
     getRatingsForPlayer, getLatestForPlayer, addRating,
     events, records, settings,
+    getAIAssessmentsForPlayer, getLatestAIAssessmentForPlayer,
   } = useApp();
 
   const [showEdit, setShowEdit] = useState(false);
@@ -34,6 +114,7 @@ export function PlayerProfilePage() {
   const [showAssess, setShowAssess] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [showAccessCode, setShowAccessCode] = useState(false);
+  const [showAllAIReports, setShowAllAIReports] = useState(false);
 
   const player = getPlayerById(playerId!);
 
@@ -41,6 +122,9 @@ export function PlayerProfilePage() {
   const latest = player ? getLatestForPlayer(player.id) : undefined;
   const previous = getPreviousRating(playerRatings);
   const attendanceRate = player ? getAttendanceRate(player.id, records, events) : 0;
+
+  const aiReports = player ? getAIAssessmentsForPlayer(player.id) : [];
+  const latestAIReport = player ? getLatestAIAssessmentForPlayer(player.id) : undefined;
 
   function handleUpdate(data: Omit<Player, 'id' | 'parentAccessCode' | 'joinedDate' | 'isActive'>) {
     if (!player) return;
@@ -123,13 +207,13 @@ export function PlayerProfilePage() {
           </div>
         </div>
 
-        {/* Stats row */}
-        <div className="mt-5 grid grid-cols-3 gap-3">
+        {/* Stats row — 4 stats */}
+        <div className="mt-5 grid grid-cols-4 gap-3">
           <div className="bg-pitch-50 rounded-xl p-3 text-center">
             <p className="text-2xl font-bold text-pitch-700">
               {latest ? getOverallScore(latest) : '—'}
             </p>
-            <p className="text-xs text-gray-500 mt-0.5">Overall Score</p>
+            <p className="text-xs text-gray-500 mt-0.5">Skill Score</p>
           </div>
           <div className="bg-blue-50 rounded-xl p-3 text-center">
             <p className="text-2xl font-bold text-blue-700">{attendanceRate}%</p>
@@ -137,13 +221,72 @@ export function PlayerProfilePage() {
           </div>
           <div className="bg-purple-50 rounded-xl p-3 text-center">
             <p className="text-2xl font-bold text-purple-700">{playerRatings.length}</p>
-            <p className="text-xs text-gray-500 mt-0.5">Assessments</p>
+            <p className="text-xs text-gray-500 mt-0.5">Skill Ratings</p>
+          </div>
+          <div className="bg-emerald-50 rounded-xl p-3 text-center">
+            <p className="text-2xl font-bold text-emerald-700">{aiReports.length}</p>
+            <p className="text-xs text-gray-500 mt-0.5">AI Reports</p>
           </div>
         </div>
       </Card>
 
+      {/* ── AI Development Report ───────────────────────────────────────────── */}
+      <Card className="mb-5">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <BrainCircuit size={16} className="text-pitch-600" />
+            <h2 className="text-base font-semibold text-gray-900">AI Development Report</h2>
+          </div>
+          <Link
+            to="/coaches-corner"
+            className="flex items-center gap-1 text-xs text-pitch-600 font-medium hover:text-pitch-800"
+          >
+            {latestAIReport ? 'New Report' : 'Run Assessment'} <ArrowRight size={13} />
+          </Link>
+        </div>
+
+        {latestAIReport ? (
+          <>
+            <AIReportCard report={latestAIReport} />
+
+            {/* Older reports */}
+            {aiReports.length > 1 && (
+              <div className="mt-4 pt-4 border-t border-gray-100">
+                <button
+                  type="button"
+                  className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700 font-medium"
+                  onClick={() => setShowAllAIReports(r => !r)}
+                >
+                  {showAllAIReports ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                  {showAllAIReports ? 'Hide' : 'Show'} {aiReports.length - 1} older report{aiReports.length - 1 !== 1 ? 's' : ''}
+                </button>
+                {showAllAIReports && (
+                  <div className="mt-3 space-y-5">
+                    {aiReports.slice(1).map(r => (
+                      <div key={r.id} className="border-t border-gray-100 pt-4">
+                        <AIReportCard report={r} />
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </>
+        ) : (
+          <div className="text-center py-8">
+            <BrainCircuit size={36} className="mx-auto text-gray-200 mb-3" />
+            <p className="text-sm text-gray-500">No AI reports yet for {player.firstName}.</p>
+            <Link to="/coaches-corner">
+              <Button size="sm" className="mt-3">
+                <BrainCircuit size={14} /> Run First Assessment
+              </Button>
+            </Link>
+          </div>
+        )}
+      </Card>
+
+      {/* ── Skill Radar + Breakdown ─────────────────────────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-5">
-        {/* Radar chart */}
         <Card>
           <h2 className="text-base font-semibold text-gray-900 mb-1">Skill Radar</h2>
           {latest ? (
@@ -164,7 +307,6 @@ export function PlayerProfilePage() {
           )}
         </Card>
 
-        {/* Progress bars */}
         <Card>
           <h2 className="text-base font-semibold text-gray-900 mb-4">Skill Breakdown</h2>
           {latest ? (
@@ -194,7 +336,7 @@ export function PlayerProfilePage() {
       {/* Assessment log */}
       {playerRatings.length > 0 && (
         <Card>
-          <h2 className="text-base font-semibold text-gray-900 mb-4">Assessment Log</h2>
+          <h2 className="text-base font-semibold text-gray-900 mb-4">Skill Assessment Log</h2>
           <div className="space-y-3">
             {[...playerRatings].reverse().map(rating => (
               <div key={rating.id} className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
