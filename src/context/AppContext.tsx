@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect } from 'react';
+import { createContext, useContext } from 'react';
 import { usePlayers } from '@/hooks/usePlayers';
 import { useEvents } from '@/hooks/useEvents';
 import { useSkillRatings } from '@/hooks/useSkillRatings';
@@ -54,34 +54,12 @@ interface AppContextValue {
 const AppContext = createContext<AppContextValue | null>(null);
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
-  const playersApi = usePlayers();
-  const eventsApi = useEvents();
-  const ratingsApi = useSkillRatings();
-  const attendanceApi = useAttendance();
+  const playersApi = usePlayers(SEED_PLAYERS);
+  const eventsApi = useEvents(SEED_EVENTS);
+  const ratingsApi = useSkillRatings(SEED_RATINGS);
+  const attendanceApi = useAttendance(SEED_ATTENDANCE);
   const { settings, updateSettings } = useTeamSettings();
   const { isAuthenticated, login, logout } = useCoachAuth(settings.coachPasscode);
-
-  // Seed data on first run
-  useEffect(() => {
-    if (playersApi.players.length === 0) {
-      SEED_PLAYERS.forEach(p => {
-        const existing = playersApi.players.find(ep => ep.id === p.id);
-        if (!existing) {
-          // Directly set seed data
-        }
-      });
-      // Use localStorage directly to avoid re-render loop
-      if (!localStorage.getItem('u10_seeded')) {
-        localStorage.setItem('u10_players', JSON.stringify(SEED_PLAYERS));
-        localStorage.setItem('u10_events', JSON.stringify(SEED_EVENTS));
-        localStorage.setItem('u10_skill_ratings', JSON.stringify(SEED_RATINGS));
-        localStorage.setItem('u10_attendance', JSON.stringify(SEED_ATTENDANCE));
-        localStorage.setItem('u10_seeded', 'true');
-        window.location.reload();
-      }
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   const value: AppContextValue = {
     ...playersApi,
